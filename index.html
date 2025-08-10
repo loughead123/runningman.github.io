@@ -1,25 +1,25 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="ko">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
   <title>光州跑男</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta name="viewport"
+        content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
-  <canvas id="cvs"></canvas>
+  <canvas id="gameCanvas"></canvas>
 
   <div id="ui">
-    <span id="distance">军队距离：0 m</span>
+    <button id="startBtn">开始游戏</button>
+    <div id="distance">军队距离：<span id="armyDist">--</span> m</div>
     <button id="muteBtn">🔊</button>
   </div>
 
-  <button id="startBtn">开始游戏</button>
-  <button id="restartBtn" style="display:none">再来一次</button>
-
-  <audio id="bgm" src="bgm.mp3" loop></audio>
-
-  <script async src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-  <script src="main.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/obstacle.js"></script>
+  <script src="js/army.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/game.js"></script>
 </body>
 </html>
