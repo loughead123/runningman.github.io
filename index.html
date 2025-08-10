@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <title>光州跑男</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <canvas id="cvs"></canvas>
+
+  <button id="startBtn">开始游戏</button>
+  <button id="restartBtn" style="display:none">再来一次</button>
+
+  <audio id="bgm" src="bgm.mp3" loop></audio>
+
+  <!-- 距离 & 提示 -->
+  <div id="ui">
+    <span id="distance">距离：0 m</span>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
