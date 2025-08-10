@@ -1,138 +1,123 @@
-let scene, camera, renderer, player, army, road, obstacles = [];
-let gameOver = false, frame = 0, speed = 0.12, muted = false;
+(function () {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const startBtn = document.getElementById('startBtn');
+  const distanceSpan = document.getElementById('armyDist');
+  const muteBtn = document.getElementById('muteBtn');
 
-function init() {
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 4, 10);
-  camera.lookAt(0, 0, 0);
+  let W, H, running = false, lastTime = 0;
+  let groundOffset = 0;
 
-  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('cvs'), antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  const cam = {
+    centerX: 0,
+    centerY: 0,
+    horizon: 0,
+    scale: 240,
+    far: 40
+  };
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-  dir.position.set(5, 10, 5);
-  scene.add(dir);
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    cam.centerX = W / 2;
+    cam.centerY = H / 2;
+    cam.horizon = H * 0.8;
+  }
+  window.addEventListener('resize', resize);
+  resize();
 
-  const g = new THREE.PlaneGeometry(10, 2000);
-  const m = new THREE.MeshLambertMaterial({ map: new THREE.TextureLoader().load('assets/ground.jpg') });
-  m.map.wrapS = m.map.wrapT = THREE.RepeatWrapping;
-  m.map.repeat.set(1, 100);
-  road = new THREE.Mesh(g, m);
-  road.rotation.x = -Math.PI / 2;
-  road.position.z = -1000;
-  scene.add(road);
-
-  const pGeo = new THREE.PlaneGeometry(1, 2);
-  const pMat = new THREE.MeshBasicMaterial({
-    map: new THREE.TextureLoader().load('assets/player.png'),
-    transparent: true
-  });
-  player = new THREE.Mesh(pGeo, pMat);
-  player.position.set(0, 1, 0);
-  scene.add(player);
-
-  const aGeo = new THREE.PlaneGeometry(1.2, 2);
-  const aMat = new THREE.MeshBasicMaterial({
-    map: new THREE.TextureLoader().load('assets/soldier.png'),
-    transparent: true
-  });
-  army = new THREE.Mesh(aGeo, aMat);
-  army.position.set(0, 1, 8);
-  scene.add(army);
-
-  window.addEventListener('resize', onResize);
-  window.addEventListener('touchstart', jump, { passive: false });
-  document.getElementById('startBtn').onclick = startGame;
-  document.getElementById('restartBtn').onclick = () => location.reload();
-  document.getElementById('muteBtn').onclick  = toggleMute;
-}
-
-function startGame() {
-  gameOver = false;
-  document.getElementById('startBtn').style.display = 'none';
-  if (!muted) document.getElementById('bgm').play();
-  animate();
-}
-
-function toggleMute() {
-  muted = !muted;
-  const audio = document.getElementById('bgm');
-  audio.muted = muted;
-  document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
-}
-
-function animate() {
-  if (gameOver) return;
-  requestAnimationFrame(animate);
-
-  road.position.z += speed;
-  if (road.position.z > 0) road.position.z = -1000;
-
-  army.position.x = player.position.x;
-  army.position.z -= speed * 0.9;
-
-  if (frame % 120 === 0) {
-    const oGeo = new THREE.PlaneGeometry(1, 1 + Math.random());
-    const oMat = new THREE.MeshBasicMaterial({
-      map: new THREE.TextureLoader().load('assets/obstacle.png'),
-      transparent: true
-    });
-    const obs = new THREE.Mesh(oGeo, oMat);
-    obs.position.set((Math.random() - 0.5) * 6, 1, -50);
-    scene.add(obs);
-    obstacles.push(obs);
+  function startGame() {
+    running = true;
+    startBtn.style.display = 'none';
+    document.getElementById('distance').style.display = 'block';
+    Player.reset();
+    Obstacle.list.length = 0;
+    AudioManager.bgm.currentTime = 0;
+    AudioManager.bgm.play();
+    requestAnimationFrame(loop);
   }
 
-  obstacles.forEach(o => o.position.z += speed);
-  obstacles = obstacles.filter(o => o.position.z < 15);
-  
-  const dist = army.position.distanceTo(player.position);
-  const armyClose = dist < 2.5;
-  const hitObstacle = obstacles.some(o => o.position.distanceTo(player.position) < 1.5);
-  if (armyClose || hitObstacle) endGame();
+  function endGame() {
+    running = false;
+    startBtn.style.display = 'block';
+    startBtn.textContent = '再来一次';
+    AudioManager.bgm.pause();
+  }
 
-  document.getElementById('distance').textContent = `军队距离：${Math.max(0, Math.round(dist - 2))} m`;
+  function drawCityBG() {
+    const sky = ctx.createLinearGradient(0, 0, 0, cam.horizon);
+    sky.addColorStop(0, '#87ceeb');
+    sky.addColorStop(1, '#fff');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, cam.horizon);
 
-  renderer.render(scene, camera);
-  frame++;
-}
+    ctx.fillStyle = '#555';
+    ctx.fillRect(0, cam.horizon, W, H - cam.horizon);
 
-let jumping = false;
-function jump(e) {
-  if (e) e.preventDefault();
-  if (jumping || gameOver) return;
-  jumping = true;
-  let jumpUp = () => {
-    if (player.position.y < 3) {
-      player.position.y += 0.15;
-      requestAnimationFrame(jumpUp);
-    } else {
-      let jumpDown = () => {
-        if (player.position.y > 1) {
-          player.position.y -= 0.15;
-          requestAnimationFrame(jumpDown);
-        } else {
-          player.position.y = 1;
-          jumping = false;
-        }
-      };
-      jumpDown();
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.moveTo(cam.centerX - 4 * cam.scale, cam.horizon);
+    ctx.lineTo(cam.centerX + 4 * cam.scale, cam.horizon);
+    ctx.lineTo(cam.centerX + 2 * cam.scale, H);
+    ctx.lineTo(cam.centerX - 2 * cam.scale, H);
+    ctx.closePath();
+    ctx.fill();
+
+    for (let i = -4; i <= 4; i += 2) {
+      const scale = cam.scale / (cam.scale + 20);
+      const px = cam.centerX + i * scale;
+      const py = cam.horizon - 20 * scale;
+      const w = 1.5 * scale;
+      const h = 15 * scale;
+      ctx.fillStyle = '#666';
+      ctx.fillRect(px - w/2, py - h, w, h);
     }
-  };
-  jumpUp();
-}
+  }
 
-function onResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-}
-function endGame() {
-  gameOver = true;
-  document.getElementById('bgm').pause();
-  document.getElementById('restartBtn').style.display = 'inline-block';
-}
+  function loop(ts) {
+    if (!running) return;
+    const dt = ts - lastTime;
+    lastTime = ts;
 
-init();
+    Player.update();
+    Army.update(Player.z);
+    Obstacle.updateAll(0.2);
+    if (Math.random() < 0.015) Obstacle.spawn(cam);
+
+    if (Army.z >= Player.z - 0.8 || Player.hit(Obstacle.list)) {
+      endGame();
+      return;
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    drawCityBG();
+    Obstacle.drawAll(ctx, cam);
+    Player.draw(ctx, cam);
+    Army.draw(ctx, cam);
+
+    distanceSpan.textContent = Army.distanceTo(Player.z);
+
+    requestAnimationFrame(loop);
+  }
+
+  startBtn.addEventListener('click', startGame);
+  muteBtn.addEventListener('click', AudioManager.toggleMute);
+
+  let touchX = 0;
+  canvas.addEventListener('touchstart', e => {
+    touchX = e.touches[0].clientX;
+  });
+  canvas.addEventListener('touchmove', e => {
+    if (!running) return;
+    const dx = e.touches[0].clientX - touchX;
+    if (dx > 40) { Player.lane = 1; touchX = e.touches[0].clientX; }
+    if (dx < -40) { Player.lane = -1; touchX = e.touches[0].clientX; }
+    e.preventDefault();
+  });
+
+  window.addEventListener('keydown', e => {
+    if (!running) return;
+    if (e.key === 'ArrowLeft') Player.lane = -1;
+    if (e.key === 'ArrowRight') Player.lane = 1;
+  });
+})();
