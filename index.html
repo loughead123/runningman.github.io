@@ -9,16 +9,17 @@
 <body>
   <canvas id="cvs"></canvas>
 
+  <div id="ui">
+    <span id="distance">军队距离：0 m</span>
+    <button id="muteBtn">🔊</button>
+  </div>
+
   <button id="startBtn">开始游戏</button>
   <button id="restartBtn" style="display:none">再来一次</button>
 
   <audio id="bgm" src="bgm.mp3" loop></audio>
 
-  <!-- 距离 & 提示 -->
-  <div id="ui">
-    <span id="distance">距离：0 m</span>
-  </div>
-
-  <script src="game.js"></script>
+  <script async src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
