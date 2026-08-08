@@ -1,25 +1,1054 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8"/>
-  <title>光州跑男</title>
-  <meta name="viewport"
-        content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-  <link rel="stylesheet" href="css/style.css"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>光州跑男 - 城市跑酷</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            overflow: hidden; 
+            background: #000; 
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        #game-container { 
+            width: 100vw; 
+            height: 100vh; 
+            position: relative; 
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* UI 层 */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .screen {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            transition: opacity 0.4s ease;
+        }
+        .hidden { opacity: 0; pointer-events: none; display: none !important; }
+        
+        /* 开始界面 */
+        #start-screen {
+            background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.95) 100%);
+        }
+        .game-title {
+            font-size: 52px;
+            color: #FFD700;
+            text-shadow: 0 0 30px rgba(255,215,0,0.6), 0 4px 8px rgba(0,0,0,0.8);
+            margin-bottom: 16px;
+            font-weight: bold;
+            letter-spacing: 4px;
+        }
+        .game-subtitle {
+            font-size: 20px;
+            color: #ff6b6b;
+            margin-bottom: 30px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .rules-box {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 16px;
+            padding: 20px 30px;
+            margin-bottom: 40px;
+            color: #e0e0e0;
+            font-size: 15px;
+            line-height: 2;
+            text-align: center;
+            max-width: 320px;
+        }
+        .rules-box span { color: #FFD700; font-weight: bold; }
+        .btn-start {
+            padding: 16px 70px;
+            font-size: 26px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 6px 25px rgba(102,126,234,0.5);
+            transition: all 0.3s ease;
+            font-family: inherit;
+            font-weight: bold;
+            pointer-events: auto;
+        }
+        .btn-start:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 8px 30px rgba(102,126,234,0.7);
+        }
+        .btn-start:active { transform: scale(0.95); }
+        
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            padding: 20px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+        .hud-panel {
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(8px);
+            padding: 12px 20px;
+            border-radius: 16px;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.15);
+            min-width: 100px;
+            text-align: center;
+        }
+        .hud-label {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .hud-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #FFD700;
+            transition: color 0.3s;
+            font-variant-numeric: tabular-nums;
+        }
+        .hud-value.danger { 
+            color: #FF3333 !important; 
+            animation: pulse 0.6s infinite; 
+        }
+        .hud-value.warning { color: #FF8800 !important; }
+        @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.05); } }
+        
+        /* 减速提示 */
+        #slowdown-alert {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: #FF3333;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(255,0,0,0.8);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 20;
+        }
+        #slowdown-alert.show { opacity: 1; animation: slowdownShake 0.5s ease; }
+        @keyframes slowdownShake {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            25% { transform: translate(-50%, -50%) scale(1.2) rotate(-5deg); }
+            75% { transform: translate(-50%, -50%) scale(1.2) rotate(5deg); }
+        }
+        
+        /* 结束界面 */
+        #gameover-screen {
+            background: rgba(0,0,0,0.88);
+            display: none;
+        }
+        .gameover-title {
+            font-size: 44px;
+            color: #FF4444;
+            margin-bottom: 12px;
+            text-shadow: 0 0 20px rgba(255,68,68,0.5);
+            font-weight: bold;
+        }
+        .gameover-reason {
+            font-size: 20px;
+            color: #ccc;
+            margin-bottom: 30px;
+        }
+        .final-score-box {
+            background: rgba(255,215,0,0.15);
+            border: 2px solid rgba(255,215,0,0.4);
+            border-radius: 16px;
+            padding: 20px 40px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .final-score-label {
+            font-size: 16px;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+        .final-score-value {
+            font-size: 42px;
+            color: #FFD700;
+            font-weight: bold;
+        }
+        .btn-restart {
+            padding: 14px 50px;
+            font-size: 22px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(245,87,108,0.4);
+            transition: all 0.3s;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        .btn-restart:hover { transform: scale(1.05); box-shadow: 0 6px 25px rgba(245,87,108,0.6); }
+        
+        /* 操作提示 */
+        .controls-hint {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.5);
+            font-size: 14px;
+            text-align: center;
+            pointer-events: none;
+            transition: opacity 1s;
+        }
+        
+        /* 横屏提示 */
+        #rotate-hint {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 22px;
+            text-align: center;
+            padding: 20px;
+            flex-direction: column;
+        }
+        #rotate-hint .phone-icon {
+            width: 60px; height: 100px;
+            border: 4px solid white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            position: relative;
+            animation: rotatePhone 2s infinite;
+        }
+        @keyframes rotatePhone {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(90deg); }
+        }
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            #rotate-hint { display: flex !important; }
+            #game-container, #ui-layer { display: none !important; }
+        }
+    </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
 
-  <div id="ui">
-    <button id="startBtn">开始游戏</button>
-    <div id="distance">军队距离：<span id="armyDist">--</span> m</div>
-    <button id="muteBtn">🔊</button>
-  </div>
+<!-- 横屏提示 -->
+<div id="rotate-hint">
+    <div class="phone-icon"></div>
+    <div>请旋转设备至竖屏模式<br>以获得最佳游戏体验</div>
+</div>
 
-  <script src="js/audio.js"></script>
-  <script src="js/obstacle.js"></script>
-  <script src="js/army.js"></script>
-  <script src="js/player.js"></script>
-  <script src="js/game.js"></script>
+<div id="game-container"></div>
+
+<div id="ui-layer">
+    <!-- 开始界面 -->
+    <div id="start-screen" class="screen">
+        <div class="game-title">光州跑男</div>
+        <div class="game-subtitle">城市跑酷大挑战</div>
+        <div class="rules-box">
+            <span>🎮 操作：</span>左右滑动切换跑道<br>
+            <span>⚠️ 注意：</span>躲避障碍物，小心炸弹<br>
+            <span>💣 炸弹：</span>会让你减速，军队会追上<br>
+            <span>🏃 目标：</span>跑得越远越好！
+        </div>
+        <button class="btn-start" id="start-btn">开始游戏</button>
+    </div>
+    
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+        <div class="hud-panel">
+            <div class="hud-label">军队距离</div>
+            <div class="hud-value" id="distance-display">100m</div>
+        </div>
+        <div class="hud-panel">
+            <div class="hud-label">奔跑距离</div>
+            <div class="hud-value" id="score-display">0m</div>
+        </div>
+    </div>
+    
+    <!-- 减速警告 -->
+    <div id="slowdown-alert">减速！</div>
+    
+    <!-- 结束界面 -->
+    <div id="gameover-screen" class="screen">
+        <div class="gameover-title">游戏结束</div>
+        <div class="gameover-reason" id="gameover-reason">你撞到了障碍物！</div>
+        <div class="final-score-box">
+            <div class="final-score-label">最终奔跑距离</div>
+            <div class="final-score-value"><span id="final-score">0</span> m</div>
+        </div>
+        <button class="btn-restart" id="restart-btn">重新开始</button>
+    </div>
+    
+    <div class="controls-hint" id="controls-hint">← 左右滑动或点击屏幕两侧切换跑道 →</div>
+</div>
+
+<!-- 背景音乐 -->
+<!-- 请修改 src 为你仓库中音乐文件的实际路径 -->
+<audio id="bgm" loop preload="auto">
+    <source src="./assets/bgm.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+// ==================== 游戏配置 ====================
+// 请根据你的 GitHub 仓库实际目录结构修改以下路径
+const CONFIG = {
+    obstacleImage: './assets/obstacle.jpg',  // 障碍物正面贴图路径
+    baseSpeed: 18,           // 基础奔跑速度（米/秒）
+    armySpeed: 18,           // 军队追击速度（米/秒）
+    initialArmyDistance: 100, // 初始军队距离（米）
+    laneWidth: 3.5,          // 跑道宽度
+    slowDownFactor: 0.35,    // 碰到炸弹后的速度系数（35%速度）
+    slowDownDuration: 3,     // 减速持续时间（秒）
+    spawnInterval: 1.8,      // 障碍物生成间隔（秒）
+    minSpawnInterval: 0.7,   // 最小生成间隔
+    viewDistance: 90,        // 可视距离
+    fogColor: 0x87CEEB,      // 雾和天空颜色（城市天空蓝）
+    roadWidth: 14            // 道路总宽度
+};
+
+// ==================== 全局变量 ====================
+let scene, camera, renderer;
+let player, playerGroup;
+let roadTexture;
+let obstacles = [];
+let buildings = [];
+let gameState = 'menu'; // menu, playing, gameover
+let score = 0;
+let armyDistance = CONFIG.initialArmyDistance;
+let currentSpeed = CONFIG.baseSpeed;
+let isSlowed = false;
+let slowDownTimer = 0;
+let spawnTimer = 0;
+let currentLane = 0; // -1左, 0中, 1右
+let targetLane = 0;
+let lastTime = 0;
+let animationId;
+let touchStartX = 0;
+let touchStartY = 0;
+let obstacleTexture = null;
+let bgmAudio;
+let roadLineTexture;
+
+// ==================== 初始化 ====================
+function init() {
+    // 场景
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(CONFIG.fogColor);
+    scene.fog = new THREE.Fog(CONFIG.fogColor, 30, CONFIG.viewDistance);
+    
+    // 相机 - 第三人称俯视视角
+    const aspect = window.innerWidth / window.innerHeight;
+    camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 200);
+    camera.position.set(0, 7, 9);
+    camera.lookAt(0, 1, -8);
+    
+    // 渲染器
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('game-container').appendChild(renderer.domElement);
+    
+    // 光照系统
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(8, 20, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 100;
+    dirLight.shadow.camera.left = -25;
+    dirLight.shadow.camera.right = 25;
+    dirLight.shadow.camera.top = 25;
+    dirLight.shadow.camera.bottom = -25;
+    scene.add(dirLight);
+    
+    // 添加暖色补光（模拟城市黄昏）
+    const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x444444, 0.4);
+    scene.add(hemiLight);
+    
+    // 创建游戏世界
+    createRoad();
+    createPlayer();
+    createCityBackground();
+    
+    // 加载障碍物纹理（仓库中的图片）
+    loadObstacleTexture();
+    
+    // 音频元素
+    bgmAudio = document.getElementById('bgm');
+    
+    // 事件监听
+    window.addEventListener('resize', onWindowResize);
+    setupControls();
+    setupUI();
+    
+    // 启动渲染循环
+    lastTime = performance.now();
+    animate();
+}
+
+// ==================== 加载障碍物纹理 ====================
+function loadObstacleTexture() {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+        CONFIG.obstacleImage,
+        function(texture) {
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            obstacleTexture = texture;
+            console.log('障碍物贴图加载成功');
+        },
+        undefined,
+        function(err) {
+            console.warn('障碍物贴图加载失败，使用默认警示纹理');
+            // 动态生成默认纹理（黑黄警示条纹）
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FF6600';
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = #000000;
+            for (let i = 0; i < 256; i += 40) {
+                ctx.fillRect(i, 0, 20, 256);
+            }
+            obstacleTexture = new THREE.CanvasTexture(canvas);
+        }
+    );
+}
+
+// ==================== 创建道路 ====================
+function createRoad() {
+    // 沥青路面
+    const roadGeo = new THREE.PlaneGeometry(CONFIG.roadWidth, 300);
+    const roadMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+    const road = new THREE.Mesh(roadGeo, roadMat);
+    road.rotation.x = -Math.PI / 2;
+    road.position.y = -0.01;
+    road.position.z = -100;
+    road.receiveShadow = true;
+    scene.add(road);
+    
+    // 动态生成道路分道线纹理
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(0, 0, 64, 256);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(28, 0, 8, 100);
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillRect(28, 100, 8, 100);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(28, 200, 8, 56);
+    
+    roadLineTexture = new THREE.CanvasTexture(canvas);
+    roadLineTexture.wrapS = THREE.RepeatWrapping;
+    roadLineTexture.wrapT = THREE.RepeatWrapping;
+    roadLineTexture.repeat.set(1, 30);
+    
+    // 中间双黄线
+    const lineGeo = new THREE.PlaneGeometry(0.4, 300);
+    const lineMat = new THREE.MeshBasicMaterial({ 
+        map: roadLineTexture, 
+        transparent: true,
+        opacity: 0.9
+    });
+    const centerLine = new THREE.Mesh(lineGeo, lineMat);
+    centerLine.rotation.x = -Math.PI / 2;
+    centerLine.position.y = 0.01;
+    centerLine.position.z = -100;
+    scene.add(centerLine);
+    
+    // 左跑道分隔线
+    const sideLineMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, opacity: 0.6, transparent: true });
+    const leftLine = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 300), sideLineMat);
+    leftLine.rotation.x = -Math.PI / 2;
+    leftLine.position.set(-CONFIG.laneWidth, 0.02, -100);
+    scene.add(leftLine);
+    
+    // 右跑道分隔线
+    const rightLine = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 300), sideLineMat);
+    rightLine.rotation.x = -Math.PI / 2;
+    rightLine.position.set(CONFIG.laneWidth, 0.02, -100);
+    scene.add(rightLine);
+    
+    // 人行道（左右两侧）
+    const walkGeo = new THREE.BoxGeometry(5, 0.6, 300);
+    const walkMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+    
+    const leftWalk = new THREE.Mesh(walkGeo, walkMat);
+    leftWalk.position.set(-CONFIG.roadWidth/2 - 2.5, 0.3, -100);
+    leftWalk.receiveShadow = true;
+    scene.add(leftWalk);
+    
+    const rightWalk = new THREE.Mesh(walkGeo, walkMat);
+    rightWalk.position.set(CONFIG.roadWidth/2 + 2.5, 0.3, -100);
+    rightWalk.receiveShadow = true;
+    scene.add(rightWalk);
+    
+    // 路缘石
+    const curbGeo = new THREE.BoxGeometry(0.3, 0.4, 300);
+    const curbMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+    const leftCurb = new THREE.Mesh(curbGeo, curbMat);
+    leftCurb.position.set(-CONFIG.roadWidth/2, 0.2, -100);
+    scene.add(leftCurb);
+    const rightCurb = new THREE.Mesh(curbGeo, curbMat);
+    rightCurb.position.set(CONFIG.roadWidth/2, 0.2, -100);
+    scene.add(rightCurb);
+}
+
+// ==================== 创建玩家（JS 建模） ====================
+function createPlayer() {
+    playerGroup = new THREE.Group();
+    
+    // 身体（蓝色外套）
+    const bodyGeo = new THREE.BoxGeometry(0.9, 1.3, 0.6);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1a56db });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.65;
+    body.castShadow = true;
+    playerGroup.add(body);
+    
+    // 头部
+    const headGeo = new THREE.SphereGeometry(0.38, 16, 16);
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xf5d0b0 });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 1.55;
+    head.castShadow = true;
+    playerGroup.add(head);
+    
+    // 头发
+    const hairGeo = new THREE.SphereGeometry(0.4, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.4);
+    const hairMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+    const hair = new THREE.Mesh(hairGeo, hairMat);
+    hair.position.y = 1.6;
+    playerGroup.add(hair);
+    
+    // 背包（棕色）
+    const bagGeo = new THREE.BoxGeometry(0.7, 0.9, 0.35);
+    const bagMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+    const bag = new THREE.Mesh(bagGeo, bagMat);
+    bag.position.set(0, 0.9, -0.5);
+    bag.castShadow = true;
+    playerGroup.add(bag);
+    
+    // 左臂
+    const armGeo = new THREE.BoxGeometry(0.22, 0.9, 0.22);
+    const armMat = new THREE.MeshLambertMaterial({ color: 0x1a56db });
+    playerGroup.userData.leftArm = new THREE.Mesh(armGeo, armMat);
+    playerGroup.userData.leftArm.position.set(-0.6, 0.9, 0);
+    playerGroup.userData.leftArm.castShadow = true;
+    playerGroup.add(playerGroup.userData.leftArm);
+    
+    // 右臂
+    playerGroup.userData.rightArm = new THREE.Mesh(armGeo, armMat);
+    playerGroup.userData.rightArm.position.set(0.6, 0.9, 0);
+    playerGroup.userData.rightArm.castShadow = true;
+    playerGroup.add(playerGroup.userData.rightArm);
+    
+    // 左手（肤色）
+    const handGeo = new THREE.SphereGeometry(0.12, 8, 8);
+    const handMat = new THREE.MeshLambertMaterial({ color: 0xf5d0b0 });
+    const leftHand = new THREE.Mesh(handGeo, handMat);
+    leftHand.position.y = -0.5;
+    playerGroup.userData.leftArm.add(leftHand);
+    const rightHand = new THREE.Mesh(handGeo, handMat);
+    rightHand.position.y = -0.5;
+    playerGroup.userData.rightArm.add(rightHand);
+    
+    // 左腿（深色裤子）
+    const legGeo = new THREE.BoxGeometry(0.28, 0.9, 0.28);
+    const legMat = new THREE.MeshLambertMaterial({ color: 0x1a1a2e });
+    playerGroup.userData.leftLeg = new THREE.Mesh(legGeo, legMat);
+    playerGroup.userData.leftLeg.position.set(-0.22, 0.45, 0);
+    playerGroup.userData.leftLeg.castShadow = true;
+    playerGroup.add(playerGroup.userData.leftLeg);
+    
+    // 右腿
+    playerGroup.userData.rightLeg = new THREE.Mesh(legGeo, legMat);
+    playerGroup.userData.rightLeg.position.set(0.22, 0.45, 0);
+    playerGroup.userData.rightLeg.castShadow = true;
+    playerGroup.add(playerGroup.userData.rightLeg);
+    
+    // 鞋子
+    const shoeGeo = new THREE.BoxGeometry(0.3, 0.15, 0.45);
+    const shoeMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+    const leftShoe = new THREE.Mesh(shoeGeo, shoeMat);
+    leftShoe.position.set(0, -0.5, 0.1);
+    playerGroup.userData.leftLeg.add(leftShoe);
+    const rightShoe = new THREE.Mesh(shoeGeo, shoeMat);
+    rightShoe.position.set(0, -0.5, 0.1);
+    playerGroup.userData.rightLeg.add(rightShoe);
+    
+    playerGroup.position.set(0, 0, 0);
+    scene.add(playerGroup);
+    player = playerGroup;
+}
+
+// ==================== 创建城市背景（JS 建模） ====================
+function createCityBackground() {
+    const buildingColors = [0x4a5568, 0x5a6578, 0x3a4558, 0x6a7588, 0x2d3748, 0x718096];
+    
+    for (let i = 0; i < 50; i++) {
+        const height = 8 + Math.random() * 35;
+        const width = 4 + Math.random() * 5;
+        const depth = 4 + Math.random() * 5;
+        
+        const geo = new THREE.BoxGeometry(width, height, depth);
+        const mat = new THREE.MeshLambertMaterial({ 
+            color: buildingColors[Math.floor(Math.random() * buildingColors.length)]
+        });
+        const building = new THREE.Mesh(geo, mat);
+        
+        // 分布在道路两侧
+        const side = Math.random() > 0.5 ? 1 : -1;
+        const x = side * (10 + Math.random() * 20);
+        const z = -Math.random() * 200;
+        
+        building.position.set(x, height / 2, z);
+        building.castShadow = true;
+        building.receiveShadow = true;
+        
+        // 随机添加窗户（发光效果）
+        if (Math.random() > 0.3) {
+            const windowRows = Math.floor(height / 3);
+            const windowCols = Math.floor(width / 2);
+            for (let r = 0; r < windowRows; r++) {
+                for (let c = 0; c < windowCols; c++) {
+                    if (Math.random() > 0.4) continue;
+                    const winGeo = new THREE.PlaneGeometry(0.8, 1.2);
+                    const winMat = new THREE.MeshBasicMaterial({ 
+                        color: 0xFFFFCC, 
+                        transparent: true, 
+                        opacity: 0.2 + Math.random() * 0.4
+                    });
+                    const win = new THREE.Mesh(winGeo, winMat);
+                    const wx = (c - windowCols/2 + 0.5) * 1.5;
+                    const wy = (r - windowRows/2 + 0.5) * 3;
+                    win.position.set(wx, wy, side > 0 ? -depth/2 - 0.01 : depth/2 + 0.01);
+                    win.rotation.y = side > 0 ? 0 : Math.PI;
+                    building.add(win);
+                }
+            }
+        }
+        
+        scene.add(building);
+        buildings.push({ mesh: building, active: true });
+    }
+}
+
+// ==================== 生成障碍物 ====================
+function spawnObstacle() {
+    const lanes = [-1, 0, 1];
+    const lane = lanes[Math.floor(Math.random() * lanes.length)];
+    const isBomb = Math.random() < 0.35; // 35%概率是炸弹
+    
+    let mesh;
+    
+    if (isBomb) {
+        // 炸弹 - 红色球体 + 警告环
+        const group = new THREE.Group();
+        
+        const geo = new THREE.SphereGeometry(0.65, 16, 16);
+        const mat = new THREE.MeshLambertMaterial({ 
+            color: 0xff2222,
+            emissive: 0x440000,
+            emissiveIntensity: 0.3
+        });
+        const sphere = new THREE.Mesh(geo, mat);
+        sphere.castShadow = true;
+        group.add(sphere);
+        
+        // 警告环（黄色旋转）
+        const ringGeo = new THREE.TorusGeometry(0.9, 0.06, 8, 32);
+        const ringMat = new THREE.MeshBasicMaterial({ 
+            color: 0xFFFF00, 
+            transparent: true, 
+            opacity: 0.7 
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        group.add(ring);
+        
+        mesh = group;
+        mesh.userData.type = 'bomb';
+        mesh.userData.ring = ring;
+    } else {
+        // 障碍物 - 木箱，正面使用仓库图片贴图
+        const geo = new THREE.BoxGeometry(1.6, 1.6, 1.6);
+        
+        let materials;
+        if (obstacleTexture) {
+            const sideMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // 木箱侧面棕色
+            const frontMat = new THREE.MeshLambertMaterial({ map: obstacleTexture }); // 正面使用仓库图片
+            
+            // BoxGeometry 面顺序: right(+x), left(-x), top(+y), bottom(-y), front(+z), back(-z)
+            // 玩家向 -Z 跑，障碍物面向玩家的是 +Z 面（index 4）
+            materials = [sideMat, sideMat, sideMat, sideMat, frontMat, sideMat];
+        } else {
+            const defaultMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            materials = defaultMat;
+        }
+        
+        mesh = new THREE.Mesh(geo, materials);
+        mesh.userData.type = 'obstacle';
+        mesh.castShadow = true;
+    }
+    
+    mesh.position.set(lane * CONFIG.laneWidth, 0.8, -CONFIG.viewDistance);
+    scene.add(mesh);
+    
+    obstacles.push({
+        mesh: mesh,
+        lane: lane,
+        active: true
+    });
+}
+
+// ==================== 控制系统 ====================
+function setupControls() {
+    // 键盘
+    document.addEventListener('keydown', (e) => {
+        if (gameState !== 'playing') return;
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            targetLane = Math.max(-1, targetLane - 1);
+        } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            targetLane = Math.min(1, targetLane + 1);
+        }
+    });
+    
+    const container = document.getElementById('game-container');
+    
+    // 触摸滑动
+    container.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: false });
+    
+    container.addEventListener('touchend', (e) => {
+        if (gameState !== 'playing') return;
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        const diffX = touchEndX - touchStartX;
+        const diffY = touchEndY - touchStartY;
+        
+        // 水平滑动且幅度大于垂直滑动
+        if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX > 0) {
+                targetLane = Math.min(1, targetLane + 1);
+            } else {
+                targetLane = Math.max(-1, targetLane - 1);
+            }
+        }
+    }, { passive: false });
+    
+    // 点击控制（屏幕三等分）
+    container.addEventListener('click', (e) => {
+        if (gameState !== 'playing') return;
+        const x = e.clientX;
+        const width = window.innerWidth;
+        if (x < width * 0.33) {
+            targetLane = Math.max(-1, targetLane - 1);
+        } else if (x > width * 0.67) {
+            targetLane = Math.min(1, targetLane + 1);
+        }
+    });
+}
+
+// ==================== UI 控制 ====================
+function setupUI() {
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('restart-btn').addEventListener('click', startGame);
+}
+
+function startGame() {
+    // 重置状态
+    gameState = 'playing';
+    score = 0;
+    armyDistance = CONFIG.initialArmyDistance;
+    currentSpeed = CONFIG.baseSpeed;
+    isSlowed = false;
+    slowDownTimer = 0;
+    spawnTimer = 0;
+    currentLane = 0;
+    targetLane = 0;
+    
+    // 清除旧障碍物
+    obstacles.forEach(obj => scene.remove(obj.mesh));
+    obstacles = [];
+    
+    // 重置玩家
+    player.position.set(0, 0, 0);
+    player.rotation.set(0, 0, 0);
+    
+    // 重置建筑物位置
+    buildings.forEach(b => {
+        b.mesh.position.z = -Math.random() * 200;
+        const side = Math.random() > 0.5 ? 1 : -1;
+        b.mesh.position.x = side * (10 + Math.random() * 20);
+    });
+    
+    // 界面切换
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('gameover-screen').classList.add('hidden');
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('hud').classList.remove('hidden');
+    document.getElementById('controls-hint').style.opacity = '1';
+    setTimeout(() => {
+        document.getElementById('controls-hint').style.opacity = '0';
+    }, 4000);
+    
+    // 播放背景音乐
+    if (bgmAudio) {
+        bgmAudio.currentTime = 0;
+        bgmAudio.volume = 0.6;
+        bgmAudio.play().catch(e => console.log('音频播放需用户交互后触发'));
+    }
+    
+    lastTime = performance.now();
+}
+
+function gameOver(reason) {
+    gameState = 'gameover';
+    
+    // 停止音乐
+    if (bgmAudio) {
+        bgmAudio.pause();
+    }
+    
+    // 显示结束界面
+    document.getElementById('gameover-reason').textContent = reason;
+    document.getElementById('final-score').textContent = Math.floor(score);
+    document.getElementById('hud').classList.add('hidden');
+    const goScreen = document.getElementById('gameover-screen');
+    goScreen.classList.remove('hidden');
+    goScreen.style.display = 'flex';
+}
+
+// ==================== 核心游戏逻辑 ====================
+function update(deltaTime) {
+    if (gameState !== 'playing') {
+        // 菜单状态下的缓慢背景动画
+        if (gameState === 'menu') {
+            const time = performance.now() * 0.0005;
+            camera.position.x = Math.sin(time) * 2;
+            camera.lookAt(0, 1, -5);
+        }
+        return;
+    }
+    
+    const dt = Math.min(deltaTime, 0.1); // 防卡顿保护
+    
+    // 更新分数
+    score += currentSpeed * dt;
+    
+    // 减速状态处理
+    if (isSlowed) {
+        slowDownTimer -= dt;
+        if (slowDownTimer <= 0) {
+            isSlowed = false;
+            currentSpeed = CONFIG.baseSpeed;
+            document.getElementById('slowdown-alert').classList.remove('show');
+        }
+    }
+    
+    // 军队距离计算（速度相同时距离不变，玩家减速时距离缩小）
+    if (isSlowed) {
+        armyDistance -= (CONFIG.armySpeed - currentSpeed) * dt;
+    }
+    
+    if (armyDistance <= 0) {
+        gameOver('军队追上你了！');
+        return;
+    }
+    
+    // 平滑切换跑道
+    const targetX = targetLane * CONFIG.laneWidth;
+    player.position.x += (targetX - player.position.x) * 12 * dt;
+    currentLane = targetLane;
+    
+    // 玩家奔跑动画
+    const runTime = performance.now() * 0.015;
+    player.position.y = Math.abs(Math.sin(runTime * 2)) * 0.12;
+    
+    // 身体部件摆动
+    player.userData.leftArm.rotation.x = Math.sin(runTime * 2) * 0.6;
+    player.userData.rightArm.rotation.x = -Math.sin(runTime * 2) * 0.6;
+    player.userData.leftLeg.rotation.x = -Math.sin(runTime * 2) * 0.6;
+    player.userData.rightLeg.rotation.x = Math.sin(runTime * 2) * 0.6;
+    
+    // 身体轻微倾斜（转向时）
+    const lean = (targetX - player.position.x) * 0.1;
+    player.rotation.z = -lean;
+    player.rotation.y = -lean * 0.5;
+    
+    // 道路纹理滚动（制造高速奔跑视觉效果）
+    if (roadLineTexture) {
+        roadLineTexture.offset.y -= currentSpeed * dt * 0.08;
+    }
+    
+    // 建筑物向后移动（对象循环利用）
+    buildings.forEach(b => {
+        b.mesh.position.z += currentSpeed * dt;
+        if (b.mesh.position.z > 15) {
+            b.mesh.position.z = -180 - Math.random() * 40;
+            const side = Math.random() > 0.5 ? 1 : -1;
+            b.mesh.position.x = side * (10 + Math.random() * 20);
+            // 随机改变高度增加变化感
+            const newHeight = 8 + Math.random() * 35;
+            b.mesh.scale.y = newHeight / b.mesh.geometry.parameters.height;
+            b.mesh.position.y = newHeight / 2;
+        }
+    });
+    
+    // 生成障碍物（随距离增加难度）
+    spawnTimer += dt;
+    const difficultyMultiplier = Math.min(0.6, score * 0.0005);
+    const currentInterval = Math.max(CONFIG.minSpawnInterval, CONFIG.spawnInterval - difficultyMultiplier);
+    
+    if (spawnTimer > currentInterval) {
+        spawnObstacle();
+        spawnTimer = 0;
+    }
+    
+    // 更新障碍物和碰撞检测
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obj = obstacles[i];
+        if (!obj.active) continue;
+        
+        // 障碍物向玩家移动（+Z方向）
+        obj.mesh.position.z += currentSpeed * dt;
+        
+        // 炸弹动画
+        if (obj.mesh.userData.type === 'bomb' && obj.mesh.userData.ring) {
+            obj.mesh.userData.ring.rotation.z += dt * 3;
+            const pulse = 1 + Math.sin(performance.now() * 0.008) * 0.15;
+            obj.mesh.userData.ring.scale.set(pulse, pulse, pulse);
+            // 炸弹上下浮动
+            obj.mesh.position.y = 0.8 + Math.sin(performance.now() * 0.01) * 0.2;
+        }
+        
+        // 碰撞检测（当障碍物经过玩家 Z 位置时）
+        if (obj.mesh.position.z > -1.2 && obj.mesh.position.z < 1.2) {
+            // 检查是否在同一跑道（允许一定误差）
+            const laneDiff = Math.abs(obj.lane - currentLane);
+            if (laneDiff === 0) {
+                if (obj.mesh.userData.type === 'bomb') {
+                    // 碰到炸弹 - 减速
+                    isSlowed = true;
+                    slowDownTimer = CONFIG.slowDownDuration;
+                    currentSpeed = CONFIG.baseSpeed * CONFIG.slowDownFactor;
+                    
+                    // 移除炸弹
+                    scene.remove(obj.mesh);
+                    obj.active = false;
+                    obstacles.splice(i, 1);
+                    
+                    // 显示减速警告
+                    const alert = document.getElementById('slowdown-alert');
+                    alert.classList.add('show');
+                    setTimeout(() => alert.classList.remove('show'), 1000);
+                    
+                    // 视觉反馈 - 屏幕震动
+                    camera.position.x += (Math.random() - 0.5) * 0.5;
+                } else {
+                    // 碰到障碍物 - 游戏结束
+                    gameOver('你撞到了障碍物！');
+                    return;
+                }
+            }
+        }
+        
+        // 清理超出视野的障碍物
+        if (obj.mesh.position.z > 12) {
+            scene.remove(obj.mesh);
+            obj.active = false;
+            obstacles.splice(i, 1);
+        }
+    }
+    
+    // 相机跟随玩家轻微晃动（增加速度感）
+    const shake = isSlowed ? 0.1 : 0.02;
+    camera.position.x = player.position.x * 0.3 + Math.sin(performance.now() * 0.02) * shake;
+    camera.lookAt(player.position.x * 0.2, 1, -5);
+    
+    // 更新 HUD
+    updateHUD();
+}
+
+function updateHUD() {
+    const distEl = document.getElementById('distance-display');
+    const scoreEl = document.getElementById('score-display');
+    
+    const dist = Math.max(0, Math.floor(armyDistance));
+    distEl.textContent = dist + 'm';
+    scoreEl.textContent = Math.floor(score) + 'm';
+    
+    // 距离预警颜色
+    distEl.classList.remove('danger', 'warning');
+    if (dist < 20) {
+        distEl.classList.add('danger');
+    } else if (dist < 50) {
+        distEl.classList.add('warning');
+    }
+}
+
+// ==================== 渲染循环 ====================
+function animate() {
+    animationId = requestAnimationFrame(animate);
+    
+    const currentTime = performance.now();
+    const deltaTime = (currentTime - lastTime) / 1000;
+    lastTime = currentTime;
+    
+    update(deltaTime);
+    renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ==================== 启动游戏 ====================
+init();
+</script>
+
 </body>
 </html>
